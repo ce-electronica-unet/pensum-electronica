@@ -108,6 +108,18 @@ button{font:inherit;color:inherit}
 .elh{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 2px 8px;font-size:14px;font-family:var(--f-display)}
 .elh span:last-child{font-family:var(--f-body);font-size:12.5px;color:var(--muted)}
 .opts div{margin-top:3px}
+.opener{border:0;cursor:pointer;font:inherit;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:4px}
+.opener .car{transition:transform .2s;display:inline-block}
+.opener[aria-expanded="true"] .car{transform:rotate(180deg)}
+.opener:hover{box-shadow:inset 0 0 0 1px currentColor}
+.opens{margin-top:10px;padding:10px 12px;border-radius:9px;background:rgba(92,211,255,.06);border:1px dashed rgba(92,211,255,.3);font-size:13px}
+.opens p{margin:0 0 6px;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px;font-family:var(--f-mono)}
+.opens p+div,.opens ul+p{margin-top:10px}
+.opens ul{list-style:none;margin:0;padding:0;display:grid;gap:7px}
+.opens li{display:flex;gap:8px;align-items:flex-start}
+.opens li b{font-weight:600}
+.opens li em{display:block;font-style:normal;font-size:12px;color:var(--muted)}
+.later{display:grid;gap:5px;color:var(--ink);font-size:12.5px;line-height:1.5}
 
 /* Recomendación */
 .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-block:12px;backdrop-filter:blur(2px)}
@@ -347,6 +359,10 @@ function unlocks(k){ const seen = new Set(), st=[k];
   while(st.length){ const x=st.pop(); (DEPS[x]||[]).forEach(d=>{ if(!seen.has(d)){seen.add(d); st.push(d);} }); }
   return seen.size; }
 const UNLOCK = {}; CORE.forEach(c => UNLOCK[c.key] = unlocks(c.key));
+function unlockSet(k){ const seen = new Set(), st=[k];
+  while(st.length){ const x=st.pop(); (DEPS[x]||[]).forEach(d=>{ if(!seen.has(d)){seen.add(d); st.push(d);} }); }
+  return seen; }
+const OPEN = new Set();
 
 // ---------- estado ----------
 const LS = "pensumElectronicaUNET.v1";
@@ -470,10 +486,26 @@ function whyChips(c){
   if (c.slot) return '<span class="st av">Electiva</span>';
   const w = [];
   if (CHAIN[c.key] >= 2) w.push(`<span class="st wn">Ruta crítica</span>`);
-  if (UNLOCK[c.key]) w.push(`<span class="st av">Abre ${UNLOCK[c.key]} materia${UNLOCK[c.key]>1?"s":""}</span>`);
+  if (UNLOCK[c.key]) w.push(`<button class="st av opener" data-open="${c.key}" aria-expanded="${OPEN.has(c.key)}">Abre ${UNLOCK[c.key]} materia${UNLOCK[c.key]>1?"s":""} <span class="car" aria-hidden="true">▾</span></button>`);
   if ((c.co||[]).length) w.push(`<span class="st lk">Correquisito: ${c.co.map(nm).join(", ")}</span>`);
   if (!w.length) w.push('<span class="st lk">No prela otras</span>');
   return w.join("");
+}
+function opensPanel(c){
+  if (!OPEN.has(c.key)) return "";
+  const direct = (DEPS[c.key]||[]).map(k=>BY[k]).sort((p,q)=>p.sem-q.sem);
+  const dset = new Set(direct.map(x=>x.key));
+  const later = [...unlockSet(c.key)].filter(k=>!dset.has(k)).map(k=>BY[k]).sort((p,q)=>p.sem-q.sem);
+  const uc = ucOf(S.a);
+  const item = d => { const other = [...d.pre, ...d.co].filter(p=>p!==c.key && !S.a.has(p)).map(nm);
+    return `<li><span class="chip" style="${chipStyle(d.sem)};height:20px;min-width:30px;font-size:11px">${ROMAN[d.sem]}</span>
+      <span><b>${d.name}</b>${other.length?`<em>También necesita: ${other.join(", ")}</em>`:`<em>Se abre apenas apruebes esta</em>`}</span></li>`; };
+  let h = `<div class="opens"><p>Al aprobarla puedes inscribir:</p><ul>${direct.map(item).join("")}</ul>`;
+  if (later.length){
+    const bySem = {}; later.forEach(d => (bySem[d.sem] = bySem[d.sem]||[]).push(d.name));
+    h += `<p>Y más adelante, en cadena:</p><div class="later">${Object.keys(bySem).map(s=>`<div><span class="chip" style="${chipStyle(+s)};height:18px;min-width:28px;font-size:10.5px">${ROMAN[s]}</span> ${bySem[s].join(" · ")}</div>`).join("")}</div>`;
+  }
+  return h + `</div>`;
 }
 function renderInscribir(){
   const L = S.lim[S.mode];
@@ -484,6 +516,7 @@ function renderInscribir(){
       <span class="chip" style="${chipStyle(c.slot?0:c.sem)}">${c.slot?"EL":ROMAN[c.sem]}</span>
       <div class="tx"><div class="nm" style="font-weight:600">${c.name}${c.code?` <span class="code" style="color:var(--muted)">${c.code}</span>`:""}</div>
         <div class="why">${whyChips(c)}</div>
+        ${c.slot?"":opensPanel(c)}
         ${c.slot?`<div class="opts">${[8,9,null].map(g=>{const o=c.options.filter(e=>(e.sem||null)===g); return o.length?`<div><b>${g?"Electivas de "+ROMAN[g]:"Otras"}:</b> ${o.map(e=>e.name).join(" · ")}</div>`:""}).join("")}</div>`:""}</div>
       <span class="uc">${c.uc}</span></div>`).join("")
     : `<div class="empty">${CORE.every(c=>S.a.has(c.key)) ? "¡Ya aprobaste todas las materias! Te queda el Trabajo de Aplicación Profesional." : "No hay materias disponibles con estos límites. Sube el máximo de U.C. o revisa las que marcaste como no ofertadas."}</div>`;
@@ -546,6 +579,10 @@ $("semList").addEventListener("click", e => {
   const r = e.target.closest(".row"); if (r) return toggle(r.dataset.k);
   const b = e.target.closest(".all"); if (b){ const s = +b.dataset.sem, on = b.dataset.on==="1";
     CORE.filter(c=>c.sem===s).forEach(c => on ? S.a.add(c.key) : S.a.delete(c.key)); save(); render(); }
+});
+$("recList").addEventListener("click", e => {
+  const o = e.target.closest(".opener"); if (!o) return;
+  const k = o.dataset.open; OPEN.has(k) ? OPEN.delete(k) : OPEN.add(k); renderInscribir();
 });
 $("otherList").addEventListener("click", e => {
   const x = e.target.closest("[data-x]"), i = e.target.closest("[data-in]");
