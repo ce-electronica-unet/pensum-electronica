@@ -177,6 +177,10 @@ button{font:inherit;color:inherit}
 .or::before,.or::after{content:"";flex:1;height:1px;background:var(--line-strong)}
 .fields{display:grid;gap:8px}
 .fields input{width:100%;font:inherit;font-size:16px;padding:11px 12px;border-radius:9px;border:1px solid var(--line-strong);background:#050C09;color:var(--ink)}
+.pw{position:relative}
+.pw input{padding-right:84px}
+.eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:5px;border:0;background:transparent;color:var(--trace);font-size:13px;font-weight:600;padding:8px;cursor:pointer}
+.eye[aria-pressed="false"] .slash{display:none}
 .link{border:0;background:none;color:var(--av);font-size:13px;padding:10px 0 0;cursor:pointer;text-decoration:underline}
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
 @media (max-width:380px){.stats{grid-template-columns:1fr 1fr}.stats .stat:last-child{grid-column:1/-1}.brand h1{font-size:21px}}
@@ -286,7 +290,8 @@ button{font:inherit;color:inherit}
         <div class="or"><span>o con tu correo</span></div>
         <div class="fields">
           <input id="acEmail" type="email" inputmode="email" autocomplete="email" placeholder="correo@ejemplo.com" aria-label="Correo">
-          <input id="acPass" type="password" autocomplete="current-password" placeholder="Contraseña (mínimo 6 caracteres)" aria-label="Contraseña">
+          <div class="pw"><input id="acPass" type="password" autocomplete="current-password" placeholder="Contraseña (mínimo 6 caracteres)" aria-label="Contraseña">
+            <button type="button" class="eye" id="acEye" aria-label="Mostrar contraseña" aria-pressed="false"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path class="slash" d="M4 4l16 16"/></svg><span id="acEyeT">Ver</span></button></div>
         </div>
         <div class="inrow" style="margin-top:10px"><button class="btn" id="acLogin">Entrar</button><button class="btn sec" id="acSignup">Crear cuenta</button></div>
         <button class="link" id="acReset">¿Olvidaste tu contraseña?</button>
@@ -648,6 +653,9 @@ const FB_V = "10.12.2";
   $("acReset").onclick = async () => { const [e] = creds();
     if (!e) return say("Escribe tu correo arriba y vuelve a tocar aquí.");
     try { await auth.sendPasswordResetEmail(e); say("Te enviamos un correo para cambiar la contraseña. Revisa también la carpeta de spam.", true); } catch(err){ say(errMsg(err)); } };
+  $("acEye").onclick = () => { const i = $("acPass"), show = i.type === "password";
+    i.type = show ? "text" : "password"; $("acEye").setAttribute("aria-pressed", show);
+    $("acEye").setAttribute("aria-label", show ? "Ocultar contraseña" : "Mostrar contraseña"); $("acEyeT").textContent = show ? "Ocultar" : "Ver"; };
   $("acLogout").onclick = async () => { await auth.signOut(); say("Cerraste sesión. Tus materias siguen en este teléfono.", true); };
   start();
 })();
