@@ -108,6 +108,20 @@ button{font:inherit;color:inherit}
 .elh{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 2px 8px;font-size:14px;font-family:var(--f-display)}
 .elh span:last-child{font-family:var(--f-body);font-size:12.5px;color:var(--muted)}
 .opts div{margin-top:3px}
+.markbar{display:grid;gap:6px;margin:4px 2px 4px}
+.markbar>span{font-size:12.5px;color:var(--muted)}
+.marks{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:rgba(3,10,7,.8);border:1px solid var(--line);padding:4px;border-radius:12px}
+.marks button{display:flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:9px;padding:9px 6px;font-family:var(--f-display);font-weight:600;font-size:13.5px;background:transparent;color:var(--muted);cursor:pointer}
+.marks button[aria-pressed="true"]{background:rgba(255,255,255,.06);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line-strong)}
+.led{flex:none;width:11px;height:11px;border-radius:50%}
+.led.g{background:radial-gradient(circle at 35% 35%,#D9FFEA,#34E88B 45%,#0F7A44);box-shadow:0 0 8px rgba(52,232,139,.8)}
+.led.r{background:radial-gradient(circle at 35% 35%,#FFD9DD,#FF4D5E 45%,#9A1525);box-shadow:0 0 8px rgba(255,77,94,.8)}
+.row.enr .ck{border-color:#FF8A95;background:radial-gradient(circle at 35% 35%,#FFE0E3,#FF4D5E 45%,#9A1525);box-shadow:0 0 10px rgba(255,77,94,.85),0 0 22px rgba(255,77,94,.35)}
+.st.en{background:rgba(255,77,94,.14);color:#FF7A86}
+.cursando{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#FF9AA3}
+.cursando i{width:9px;height:9px;border-radius:50%;background:#FF4D5E;box-shadow:0 0 8px rgba(255,77,94,.9)}
+.ps.cur{border-color:rgba(255,77,94,.4)}
+.ps.cur header{background:rgba(255,77,94,.1)}
 .opener{border:0;cursor:pointer;font:inherit;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:4px}
 .opener .car{transition:transform .2s;display:inline-block}
 .opener[aria-expanded="true"] .car{transform:rotate(180deg)}
@@ -209,6 +223,7 @@ button{font:inherit;color:inherit}
   <section class="sum" aria-label="Resumen">
     <div class="big"><b id="sUC">0</b><span>de 164 U.C. aprobadas</span></div>
     <div class="bar" id="sBar" aria-hidden="true"></div>
+    <div class="cursando" id="sCur" hidden></div>
     <div class="stats">
       <div class="stat"><b id="sMat">0/66</b><span>materias</span></div>
       <div class="stat"><b id="sEl">0/4</b><span>electivas</span></div>
@@ -228,7 +243,13 @@ button{font:inherit;color:inherit}
 
   <main>
     <section id="v-materias">
-      <p class="note">Toca una materia para marcarla como aprobada.</p>
+      <div class="markbar">
+        <span>Al tocar una materia, marcarla como:</span>
+        <div class="marks" role="group" aria-label="Tipo de marca">
+          <button id="mkA" aria-pressed="true"><i class="led g"></i>Aprobada</button>
+          <button id="mkE" aria-pressed="false"><i class="led r"></i>Inscrita este semestre</button>
+        </div>
+      </div>
       <div id="semList"></div>
     </section>
     <section id="v-inscribir" hidden>
@@ -247,6 +268,7 @@ button{font:inherit;color:inherit}
       </div>
       <div class="card">
         <h3>Te recomendamos</h3>
+        <p class="note" id="recNote" style="margin-top:-4px" hidden></p>
         <div class="rec" id="recList"></div>
         <div class="tot" id="recTot"></div>
       </div>
@@ -272,6 +294,12 @@ button{font:inherit;color:inherit}
           <select id="qSem" aria-label="Semestre"></select>
           <button class="btn sec" id="qGo">Marcar</button>
         </div>
+      </div>
+      <div class="card">
+        <h3 style="font-size:17px">Terminé el semestre</h3>
+        <p>Pasa todas las materias inscritas (LED rojo) a aprobadas de una vez. Si reprobaste alguna, la desmarcas después.</p>
+        <div class="inrow"><button class="btn sec" id="finSem">Marcar inscritas como aprobadas</button></div>
+        <div class="msg" id="finMsg" role="status"></div>
       </div>
       <div class="card">
         <h3 style="font-size:17px">Código de respaldo</h3>
@@ -366,16 +394,19 @@ const OPEN = new Set();
 
 // ---------- estado ----------
 const LS = "pensumElectronicaUNET.v1";
+let MARK = "a";   // qué marca un toque: "a" aprobada, "e" inscrita
+const plusE = () => new Set([...S.a, ...S.e]);
 const DEF_LIM = {sem:{uc:20,n:10}, int:{uc:8,n:2}};
-let S = {a:new Set(), x:new Set(), mode:"sem", lim:JSON.parse(JSON.stringify(DEF_LIM)), t:0};
+let S = {a:new Set(), e:new Set(), x:new Set(), mode:"sem", lim:JSON.parse(JSON.stringify(DEF_LIM)), t:0};
 function loadLocal(){ try{ const r = JSON.parse(localStorage.getItem(LS)||"null"); if(r) applyRaw(r); }catch(e){} }
 function applyRaw(r){
   S.a = new Set((r.a||[]).filter(k=>BY[k])); S.x = new Set((r.x||[]).filter(k=>BY[k]));
+  S.e = new Set((r.e||[]).filter(k=>BY[k] && !S.a.has(k)));
   S.mode = r.mode==="int"?"int":"sem";
   if (r.lim && r.lim.sem && r.lim.int) S.lim = {sem:{uc:+r.lim.sem.uc||20,n:+r.lim.sem.n||10}, int:{uc:+r.lim.int.uc||8,n:+r.lim.int.n||2}};
   S.t = r.t||0;
 }
-const raw = () => ({a:[...S.a], x:[...S.x], mode:S.mode, lim:S.lim, t:S.t});
+const raw = () => ({a:[...S.a], e:[...S.e], x:[...S.x], mode:S.mode, lim:S.lim, t:S.t});
 let dbRef = null, dbBusy = Promise.resolve(), dbTimer = null;
 function save(){
   S.t = Date.now();
@@ -419,6 +450,9 @@ function recommend(A, lim, excl, extraE=0){
 }
 function projection(){
   const A = new Set(S.a); let extra = 0; const out = [];
+  if (S.e.size){ const cur = [...S.e].map(k=>BY[k]);
+    out.push({current:true, picked:cur, uc:cur.reduce((t,c)=>t+c.uc,0), n:cur.filter(c=>c.uc>0).length});
+    S.e.forEach(k => A.add(k)); }
   for (let i=0;i<14;i++){
     const r = recommend(A, S.lim.sem, new Set(), extra);
     if (!r.picked.length) break;
@@ -434,6 +468,7 @@ const $ = id => document.getElementById(id);
 const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 function statusOf(c, uc){
   if (S.a.has(c.key)) return '<span class="st ok">Aprobada</span>';
+  if (S.e.has(c.key)) return '<span class="st en">Inscrita · cursando</span>';
   const m = missing(c, S.a, uc);
   if (!m.length){
     const pend = (c.co||[]).filter(k=>!S.a.has(k));
@@ -443,7 +478,7 @@ function statusOf(c, uc){
 }
 function row(c, uc){
   const on = S.a.has(c.key);
-  return `<button class="row" data-k="${c.key}" aria-pressed="${on}">
+  return `<button class="row${S.e.has(c.key)?" enr":""}" data-k="${c.key}" aria-pressed="${on}">
     <span class="ck">${CHECK}</span>
     <span class="tx"><span class="nm">${c.name}</span>
       <span class="sub">${c.code?`<span class="code">${c.code}</span>`:""}${statusOf(c,uc)}</span></span>
@@ -462,7 +497,7 @@ function renderMaterias(uc){
     const all = done.length===cs.length;
     h += `<div class="sem"><div class="semh"><span class="chip" style="${chipStyle(s)}">${ROMAN[s]}</span>
       <div><h2>Semestre ${ROMAN[s]}</h2><div class="meta">${done.length}/${cs.length} materias · ${ucD}/${ucS} U.C.</div></div>
-      <button class="all" data-sem="${s}" data-on="${all?0:1}">${all?"Desmarcar":"Marcar todo"}</button></div>
+      ${MARK==="a"?`<button class="all" data-sem="${s}" data-on="${all?0:1}">${all?"Desmarcar":"Marcar todo"}</button>`:""}</div>
       <div class="list">${cs.map(c=>row(c,uc)).join("")}</div>
       ${(s===8||s===9)?electGroup(ELECT.filter(e=>e.sem===s), `Electivas de semestre ${ROMAN[s]}`, uc):""}</div>`;
   }
@@ -511,7 +546,7 @@ function renderInscribir(){
   const L = S.lim[S.mode];
   $("mSem").setAttribute("aria-pressed", S.mode==="sem"); $("mInt").setAttribute("aria-pressed", S.mode==="int");
   $("oUC").textContent = L.uc; $("oN").textContent = L.n;
-  const r = recommend(S.a, L, S.x);
+  const r = recommend(plusE(), L, S.x);
   $("recList").innerHTML = r.picked.length ? r.picked.map(c => `<div class="ri">
       <span class="chip" style="${chipStyle(c.slot?0:c.sem)}">${c.slot?"EL":ROMAN[c.sem]}</span>
       <div class="tx"><div class="nm" style="font-weight:600">${c.name}${c.code?` <span class="code" style="color:var(--muted)">${c.code}</span>`:""}</div>
@@ -520,6 +555,8 @@ function renderInscribir(){
         ${c.slot?`<div class="opts">${[8,9,null].map(g=>{const o=c.options.filter(e=>(e.sem||null)===g); return o.length?`<div><b>${g?"Electivas de "+ROMAN[g]:"Otras"}:</b> ${o.map(e=>e.name).join(" · ")}</div>`:""}).join("")}</div>`:""}</div>
       <span class="uc">${c.uc}</span></div>`).join("")
     : `<div class="empty">${CORE.every(c=>S.a.has(c.key)) ? "¡Ya aprobaste todas las materias! Te queda el Trabajo de Aplicación Profesional." : "No hay materias disponibles con estos límites. Sube el máximo de U.C. o revisa las que marcaste como no ofertadas."}</div>`;
+  $("recNote").hidden = !S.e.size;
+  if (S.e.size) $("recNote").textContent = `Para el próximo semestre, suponiendo que apruebas las ${S.e.size} materia${S.e.size>1?"s":""} que estás cursando.`;
   $("recTot").innerHTML = r.picked.length ? `<span>${r.n} materia${r.n!==1?"s":""}</span><b>${r.uc} U.C.</b>` : "";
   const others = [...r.cand.filter(c=>!r.pk.has(c.key))];
   const ex = [...S.x].map(k=>BY[k]).filter(Boolean);
@@ -535,8 +572,9 @@ function renderPlan(){
   const p = projection();
   const n = p.sems.length;
   $("sSem").textContent = p.complete ? (n + 1) : "–";
-  $("planTitle").textContent = p.complete ? `Te faltan ${n} semestre${n!==1?"s":""} + el Trabajo de Aplicación` : "Tu ruta hasta el grado";
-  let h = p.sems.map((r,i) => `<div class="ps"><header><b>${i===0?"Próximo semestre":(i+1)+".º semestre"}</b><span>${r.n} materia${r.n!==1?"s":""} · ${r.uc} U.C.</span></header>
+  $("planTitle").textContent = p.complete ? `Te faltan ${n} semestre${n!==1?"s":""}${S.e.size?" (contando el actual)":""} + el Trabajo de Aplicación` : "Tu ruta hasta el grado";
+  const off = p.sems.length && p.sems[0].current ? 0 : 1;
+  let h = p.sems.map((r,i) => `<div class="ps${r.current?" cur":""}"><header><b>${r.current?"Semestre actual (inscritas)":(i+off===1?"Próximo semestre":(i+off)+".º semestre")}</b><span>${r.n} materia${r.n!==1?"s":""} · ${r.uc} U.C.</span></header>
     <ul>${r.picked.map(c=>`<li><i style="background:${SEMC[c.slot?0:c.sem]}"></i><span>${c.name}</span><em>${c.uc} U.C.</em></li>`).join("")}</ul></div>`).join("");
   if (p.complete) h += `<div class="ps fin"><header><b>Trabajo de Aplicación Profesional</b><span>12 U.C.</span></header>
     <ul><li><span>Pasantías o Proyecto de Grado. Con todas las materias aprobadas cumples los requisitos de ambas modalidades.</span></li></ul></div>`;
@@ -546,6 +584,9 @@ function renderPlan(){
 }
 function renderSummary(uc){
   $("sUC").textContent = uc;
+  const ec = [...S.e].map(k=>BY[k]);
+  $("sCur").hidden = !ec.length;
+  if (ec.length) $("sCur").innerHTML = `<i></i>Cursando ${ec.length} materia${ec.length>1?"s":""} · ${ec.reduce((t,c)=>t+c.uc,0)} U.C. este semestre`;
   const nCore = CORE.filter(c=>c.uc>0), done = nCore.filter(c=>S.a.has(c.key)).length;
   $("sMat").textContent = `${done}/${nCore.length}`;
   $("sEl").textContent = `${electCount(S.a)}/4`;
@@ -561,25 +602,34 @@ function render(){
 }
 
 // ---------- respaldo ----------
-function encode(){
-  let bits = ORDER.map(k => S.a.has(k)?1:0); while (bits.length % 4) bits.push(0);
+function hexOf(set){
+  let bits = ORDER.map(k => set.has(k)?1:0); while (bits.length % 4) bits.push(0);
   let hex = ""; for (let i=0;i<bits.length;i+=4) hex += ((bits[i]<<3)|(bits[i+1]<<2)|(bits[i+2]<<1)|bits[i+3]).toString(16);
-  return "EL1-" + hex.toUpperCase();
+  return hex.toUpperCase();
 }
+function encode(){ return "EL1-" + hexOf(S.a) + (S.e.size ? "-" + hexOf(S.e).replace(/0+$/,"") : ""); }
 function decode(code){
-  const m = /^EL1-([0-9A-F]+)$/i.exec(code.trim().replace(/\s+/g,""));
+  const m = /^EL1-([0-9A-F]+)(?:-([0-9A-F]*))?$/i.exec(code.trim().replace(/\s+/g,""));
   if (!m) return null;
-  const a = new Set(); [...m[1]].forEach((h,i) => { const v = parseInt(h,16); for (let b=0;b<4;b++) if (v & (8>>b)) { const k = ORDER[i*4+b]; if (k) a.add(k); } });
-  return a;
+  const read = hx => { const set = new Set(); [...(hx||"")].forEach((h,i) => { const v = parseInt(h,16); for (let b=0;b<4;b++) if (v & (8>>b)) { const k = ORDER[i*4+b]; if (k) set.add(k); } }); return set; };
+  const a = read(m[1]); a.e = read(m[2]); return a;
 }
 
 // ---------- eventos ----------
-function toggle(k){ S.a.has(k) ? S.a.delete(k) : S.a.add(k); save(); render(); }
+function toggle(k){
+  if (MARK==="e"){ if (S.e.has(k)) S.e.delete(k); else { S.e.add(k); S.a.delete(k); } }
+  else { if (S.a.has(k)) S.a.delete(k); else { S.a.add(k); S.e.delete(k); } }
+  save(); render(); }
+function setMark(m){ MARK = m; $("mkA").setAttribute("aria-pressed", m==="a"); $("mkE").setAttribute("aria-pressed", m==="e"); render(); }
 $("semList").addEventListener("click", e => {
   const r = e.target.closest(".row"); if (r) return toggle(r.dataset.k);
   const b = e.target.closest(".all"); if (b){ const s = +b.dataset.sem, on = b.dataset.on==="1";
-    CORE.filter(c=>c.sem===s).forEach(c => on ? S.a.add(c.key) : S.a.delete(c.key)); save(); render(); }
+    CORE.filter(c=>c.sem===s).forEach(c => { if (on){ S.a.add(c.key); S.e.delete(c.key); } else S.a.delete(c.key); }); save(); render(); }
 });
+$("mkA").onclick = () => setMark("a"); $("mkE").onclick = () => setMark("e");
+$("finSem").onclick = () => { if (!S.e.size){ $("finMsg").className="msg bad"; $("finMsg").textContent="No tienes materias marcadas como inscritas."; return; }
+  const n = S.e.size; S.e.forEach(k=>S.a.add(k)); S.e = new Set(); save(); render();
+  $("finMsg").className="msg ok"; $("finMsg").textContent=`Listo: ${n} materia${n>1?"s":""} pasaron a aprobadas. Si reprobaste alguna, desmárcala en Materias.`; };
 $("recList").addEventListener("click", e => {
   const o = e.target.closest(".opener"); if (!o) return;
   const k = o.dataset.open; OPEN.has(k) ? OPEN.delete(k) : OPEN.add(k); renderInscribir();
@@ -610,10 +660,10 @@ $("bkCopy").onclick = async () => { const c = encode();
     $("bkMsg").className="msg"; $("bkMsg").textContent = "Selecciona el código y cópialo manualmente."; } };
 $("bkLoad").onclick = () => { const a = decode($("bkIn").value);
   if (!a){ $("bkMsg").className="msg bad"; $("bkMsg").textContent = "Ese código no es válido. Debe empezar por EL1-."; return; }
-  S.a = a; save(); render(); $("bkIn").value=""; $("bkMsg").className="msg ok"; $("bkMsg").textContent = `Progreso cargado: ${a.size} materias aprobadas.`; };
+  S.e = new Set([...a.e].filter(k=>!a.has(k))); S.a = new Set(a); save(); render(); $("bkIn").value=""; $("bkMsg").className="msg ok"; $("bkMsg").textContent = `Progreso cargado: ${a.size} materias aprobadas.`; };
 $("rst").onclick = () => { $("rst").hidden = true; $("rstYes").hidden = false; $("rstNo").hidden = false; };
 $("rstNo").onclick = () => { $("rst").hidden = false; $("rstYes").hidden = true; $("rstNo").hidden = true; };
-$("rstYes").onclick = () => { S.a = new Set(); S.x = new Set(); save(); render(); $("rstNo").onclick(); };
+$("rstYes").onclick = () => { S.a = new Set(); S.e = new Set(); S.x = new Set(); save(); render(); $("rstNo").onclick(); };
 
 // ---------- Cuenta: guardar en la nube con Firebase (solo en la versión publicada) ----------
 const FB_CONFIG = {"apiKey": "AIzaSyCjbGxq1GWUptXrqNFYVQZ63ZFVvPy9eSU", "authDomain": "pensum-electronica-31ccd.firebaseapp.com", "projectId": "pensum-electronica-31ccd", "storageBucket": "pensum-electronica-31ccd.firebasestorage.app", "messagingSenderId": "556512802945", "appId": "1:556512802945:web:32a21429c1f1af4c4d3580"};
