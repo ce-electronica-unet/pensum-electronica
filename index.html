@@ -233,8 +233,10 @@ button{font:inherit;color:inherit}
 .codebox{font-family:var(--f-mono);font-size:13px;background:#050C09;border:1px dashed var(--line-strong);color:var(--signal);border-radius:9px;padding:10px;word-break:break-all;user-select:all}
 .msg{font-size:13px;margin-top:6px;min-height:1em}
 .msg.ok{color:var(--ok)} .msg.bad{color:var(--warn)}
-.foot{display:flex;align-items:center;justify-content:center;gap:14px;padding-block:24px 30px;color:var(--muted);font-size:12px;text-align:center;flex-wrap:wrap}
-.foot img{filter:var(--logo-filter);height:22px;width:auto;opacity:.7}
+.foot{display:grid;grid-template-columns:auto auto;justify-content:center;align-items:center;column-gap:22px;row-gap:10px;padding-block:24px 30px;color:var(--muted);font-size:12px;text-align:center}
+.foot img{filter:var(--logo-filter);height:24px;width:auto;opacity:.75;order:1}
+.foot img:last-child{order:2;height:28px}
+.foot span{grid-column:1/-1;order:3;line-height:1.5}
 .acrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .acrow .sync{flex:1;min-width:160px}
 .acrow .btn{padding:8px 12px;font-size:13px}
