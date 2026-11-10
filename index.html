@@ -921,7 +921,7 @@ loadLocal(); render(); show(location.hash.slice(1));
 })();
 
 if ("serviceWorker" in navigator && location.protocol === "https:") {
-  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js", {updateViaCache: "none"}).then(r => r.update()).catch(() => {}));
 }
 // Placa de circuito: pistas verdes generadas al azar y pulsos de señal que las recorren
 (function(){
